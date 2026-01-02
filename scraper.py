@@ -9,7 +9,7 @@ API_KEY = os.environ.get("LLM_API_KEY")
 API_BASE_URL = "https://api.deepseek.com"
 
 # 搜索关键词：使用更精准的 GitHub 语法
-TOPICS = "ai or agent or quant"
+TOPICS = "ai"
 # ===========================================
 
 def load_history():
