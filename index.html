@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Future Insight | 未来洞见</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bg: '#0F0F10',
+                        card: '#1A1A1C',
+                        morandiGreen: '#8FA998',
+                        morandiBlue: '#7D93A6',
+                        morandiPink: '#BCAaa4',
+                        textMain: '#E0E0E0',
+                        textDim: '#858585'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #0F0F10; color: #E0E0E0; font-family: 'Inter', sans-serif; }
+        .tech-card { transition: all 0.3s ease; border: 1px solid rgba(255,255,255,0.05); }
+        .tech-card:hover { transform: translateY(-5px); border-color: #7D93A6; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        /* 隐藏滚动条 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0F0F10; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+    </style>
+</head>
+<body class="min-h-screen p-8">
+
+    <header class="max-w-7xl mx-auto mb-12 border-b border-gray-800 pb-6 flex justify-between items-end">
+        <div>
+            <h1 class="text-4xl font-bold tracking-tight text-white mb-2">FUTURE <span class="text-morandiBlue">INSIGHT</span></h1>
+            <p class="text-morandiGreen text-sm">每日 AI 与前沿技术情报站</p>
+        </div>
+        <div id="update-date" class="text-textDim text-sm font-mono">Loading...</div>
+    </header>
+
+    <main class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12">
+        
+        <section>
+            <h2 class="text-2xl font-bold mb-6 flex items-center">
+                <span class="w-2 h-8 bg-morandiBlue mr-3 rounded-full"></span>
+                本月新星 (Trending)
+            </h2>
+            <div id="trending-list" class="space-y-6">
+                </div>
+        </section>
+
+        <section>
+            <h2 class="text-2xl font-bold mb-6 flex items-center">
+                <span class="w-2 h-8 bg-morandiPink mr-3 rounded-full"></span>
+                历史殿堂 (Hall of Fame)
+            </h2>
+            <div id="all-time-list" class="space-y-6">
+                </div>
+        </section>
+    </main>
+
+    <div id="modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex justify-center items-center z-50 p-4">
+        <div class="bg-card w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-xl border border-gray-700 p-8 relative">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl">&times;</button>
+            <div id="modal-content"></div>
+        </div>
+    </div>
+
+    <script>
+        // 获取数据并渲染
+        fetch('./data.json')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('update-date').innerText = `Last Updated: ${data.date}`;
+                renderList('trending-list', data.trending);
+                renderList('all-time-list', data.all_time);
+            })
+            .catch(error => console.error('Error loading data:', error));
+
+        function renderList(containerId, items) {
+            const container = document.getElementById(containerId);
+            items.forEach((item, index) => {
+                const info = item.repo_info;
+                const ai = item.analysis;
+                
+                const card = document.createElement('div');
+                card.className = 'tech-card bg-card p-6 rounded-lg cursor-pointer';
+                card.onclick = () => openModal(item);
+                
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-3">
+                        <h3 class="text-xl font-bold text-white">${ai.title_cn}</h3>
+                        <span class="text-xs font-mono text-morandiGreen border border-morandiGreen px-2 py-1 rounded">★ ${info.stargazers_count}</span>
+                    </div>
+                    <p class="text-gray-400 text-sm mb-4 line-clamp-2">${ai.one_liner}</p>
+                    <div class="flex flex-wrap gap-2">
+                        ${ai.tags.map(tag => `<span class="text-xs bg-gray-800 text-morandiBlue px-2 py-1 rounded-full">#${tag}</span>`).join('')}
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function openModal(item) {
+            const modal = document.getElementById('modal');
+            const content = document.getElementById('modal-content');
+            const ai = item.analysis;
+            
+            content.innerHTML = `
+                <h2 class="text-3xl font-bold text-white mb-2">${ai.title_cn}</h2>
+                <p class="text-morandiGreen font-mono mb-6">${item.repo_info.full_name}</p>
+                
+                <div class="space-y-6 text-gray-300">
+                    <div class="bg-gray-900 p-4 rounded-lg border-l-4 border-morandiBlue">
+                        <h4 class="font-bold text-white mb-2">🎯 一句话介绍</h4>
+                        <p>${ai.one_liner}</p>
+                    </div>
+
+                    <div>
+                        <h4 class="text-xl font-bold text-white mb-2">🧠 核心原理 (Principle)</h4>
+                        <p>${ai.deep_dive.principle}</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <h4 class="font-bold text-white mb-2">🚀 应用场景</h4>
+                            <p class="text-sm">${ai.deep_dive.application}</p>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-white mb-2">💡 机会 & 灵感</h4>
+                            <p class="text-sm">${ai.deep_dive.opportunity}</p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 class="font-bold text-morandiPink mb-2">🤔 批判性思考</h4>
+                        <p class="text-sm italic text-gray-400">${ai.deep_dive.critical}</p>
+                    </div>
+
+                    <a href="${item.repo_info.html_url}" target="_blank" class="block w-full text-center bg-white text-black font-bold py-3 rounded mt-8 hover:bg-morandiBlue hover:text-white transition">
+                        查看 GitHub 源码
+                    </a>
+                </div>
+            `;
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
