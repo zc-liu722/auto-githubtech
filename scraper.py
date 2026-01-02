@@ -5,74 +5,57 @@ import time
 from datetime import datetime, timedelta
 
 # ================= 配置区域 =================
-# 建议使用 DeepSeek (https://www.deepseek.com/) 便宜且好用
 API_KEY = os.environ.get("LLM_API_KEY") 
-API_BASE_URL = "https://api.deepseek.com" 
+API_BASE_URL = "https://api.deepseek.com" # 或 https://api.openai.com/v1
 
-# 搜索关键词
+# 搜索关键词：使用更精准的 GitHub 语法
 TOPICS = "topic:artificial-intelligence OR topic:machine-learning OR topic:quantitative-finance OR topic:agent"
 # ===========================================
 
-# 【更新点 1】加载历史记录，防止重复
 def load_history():
     if os.path.exists("history.json"):
         with open("history.json", "r", encoding="utf-8") as f:
-            return set(json.load(f)) # 用集合(Set)存储，查询更快
+            return set(json.load(f))
     return set()
 
 def save_history(history_set):
     with open("history.json", "w", encoding="utf-8") as f:
-        json.dump(list(history_set), f) # 转回列表保存
+        json.dump(list(history_set), f)
 
 def get_github_repos(period="month", exclude_names=set()):
-    """获取 GitHub 项目，并过滤掉已存在的"""
     api_url = "https://api.github.com/search/repositories"
-    
-    # 【更新点 2】为了保证不重复，我们请求更多的数据(per_page=30)，然后在本地筛选
     if period == "month":
         date_since = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
         query = f"({TOPICS}) created:>{date_since}"
     else:
         query = f"({TOPICS})"
 
-    params = {
-        "q": query,
-        "sort": "stars",
-        "order": "desc",
-        "per_page": 30  # 获取多一点，方便过滤
-    }
+    params = {"q": query, "sort": "stars", "order": "desc", "per_page": 20}
     
     print(f"正在搜索 GitHub ({period})...")
     resp = requests.get(api_url, params=params)
-    
     if resp.status_code != 200:
-        print("GitHub API Error:", resp.text)
         return []
     
     raw_items = resp.json().get("items", [])
     valid_items = []
-    
-    # 【更新点 3】筛选逻辑
     for item in raw_items:
         if item['full_name'] not in exclude_names:
             valid_items.append(item)
-            if len(valid_items) >= 5: # 只需要前5个新的
-                break
-    
+            if len(valid_items) >= 5: break
     return valid_items
 
 def analyze_with_ai(repo_data):
-    """调用 AI 生成中文解读"""
-    print(f"正在分析项目: {repo_data['name']}...")
-    
+    """完整修复版：包含 headers 和 payload 逻辑"""
+    if not API_KEY:
+        print("错误: 未检测到 API_KEY")
+        return None
+
     prompt = f"""
-    项目名称: {repo_data['name']}
-    项目描述: {repo_data['description']}
-    项目地址: {repo_data['html_url']}
-    
-    请作为一位技术专家，为初学者生成该项目的中文介绍。
-    输出必须是纯 JSON 格式，无 markdown 标记。
-    字段: title_cn, one_liner, tags(数组), summary, deep_dive(包含 principle, application, opportunity, critical)。
+    项目: {repo_data['full_name']}
+    描述: {repo_data['description']}
+    要求: 以技术专家身份为小白写中文简介。专业术语保留英文加中文括号。
+    格式: 严格 JSON。包含 title_cn, one_liner, tags(3个), summary, deep_dive(principle, application, opportunity, critical)。
     """
 
     headers = {
@@ -81,58 +64,50 @@ def analyze_with_ai(repo_data):
     }
     
     payload = {
-        "model": "deepseek-chat",
+        "model": "deepseek-chat", # 或 gpt-4o-mini
         "messages": [{"role": "user", "content": prompt}],
         "response_format": {"type": "json_object"}
     }
 
     try:
-        resp = requests.post(f"{API_BASE_URL}/chat/completions", headers=headers, json=payload)
+        resp = requests.post(f"{API_BASE_URL}/chat/completions", headers=headers, json=payload, timeout=30)
         content = resp.json()['choices'][0]['message']['content']
-        return json.loads(content)
+        # 清洗 Markdown 格式
+        clean_content = content.replace("```json", "").replace("```", "").strip()
+        return json.loads(clean_content)
     except Exception as e:
-        print(f"AI 分析失败: {e}")
-        return {
-            "title_cn": repo_data['name'],
-            "one_liner": "AI 暂时休息了，请直接查看原项目。",
-            "tags": ["AI"],
-            "summary": repo_data['description'],
-            "deep_dive": {"principle": "暂无", "application": "暂无", "opportunity": "暂无", "critical": "暂无"}
-        }
+        print(f"AI 解析失败 ({repo_data['name']}): {e}")
+        return None
 
 def main():
-    # 1. 读取历史记录
     history_set = load_history()
-    
-    final_data = {
-        "date": datetime.now().strftime("%Y-%m-%d"),
-        "trending": [],
-        "all_time": []
-    }
+    final_data = {"date": datetime.now().strftime("%Y-%m-%d"), "trending": [], "all_time": []}
 
-    # 2. 获取本月新星（带过滤）
+    # 1. 获取本月热门
     month_repos = get_github_repos("month", history_set)
     for repo in month_repos:
-        ai_analysis = analyze_with_ai(repo)
-        final_data["trending"].append({"repo_info": repo, "analysis": ai_analysis})
-        history_set.add(repo['full_name']) # 加入历史记录
-        time.sleep(1) # 休息一下防止API超频
-
-    # 3. 获取历史殿堂（带过滤）
-    all_time_repos = get_github_repos("all_time", history_set)
-    for repo in all_time_repos:
-        ai_analysis = analyze_with_ai(repo)
-        final_data["all_time"].append({"repo_info": repo, "analysis": ai_analysis})
-        history_set.add(repo['full_name']) # 加入历史记录
+        analysis = analyze_with_ai(repo)
+        if analysis:
+            final_data["trending"].append({"repo_info": repo, "analysis": analysis})
+            history_set.add(repo['full_name'])
         time.sleep(1)
 
-    # 4. 保存显示数据
+    # 2. 获取历史殿堂
+    all_time_repos = get_github_repos("all_time", history_set)
+    for repo in all_time_repos:
+        analysis = analyze_with_ai(repo)
+        if analysis:
+            # 【修正点】这里改为存入 all_time 列表
+            final_data["all_time"].append({"repo_info": repo, "analysis": analysis})
+            history_set.add(repo['full_name'])
+        time.sleep(1)
+
+    # 3. 保存文件
     with open("data.json", "w", encoding="utf-8") as f:
         json.dump(final_data, f, ensure_ascii=False, indent=2)
     
-    # 5. 【更新点 4】保存新的历史记录
     save_history(history_set)
-    print("数据更新完成！历史记录已保存。")
+    print(f"更新成功！今日抓取 {len(final_data['trending']) + len(final_data['all_time'])} 个项目。")
 
 if __name__ == "__main__":
     main()
