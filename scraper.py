@@ -9,7 +9,7 @@ API_KEY = os.environ.get("LLM_API_KEY")
 API_BASE_URL = "https://api.deepseek.com"
 
 # 搜索关键词：使用更精准的 GitHub 语法
-TOPICS = "ai"
+TOPICS = "ai or agent or quant"
 # ===========================================
 
 def load_history():
@@ -102,7 +102,7 @@ def analyze_with_ai(repo_data):
         1.指出该项目目前存在的主要问题和局限性。
         2.分析这些问题对用户和行业的影响。
         3.大学生在使用时需要注意什么风险。
-    输出格式: 严格 JSON。包含 title_cn, one_liner, tags(3个), summary, deep_dive(principle, application, opportunity, critical)。
+    输出格式: 严格输出JSON。包含 title_cn, one_liner, tags(3个), summary, deep_dive(principle, application, opportunity, critical)。
     """
 
     headers = {
@@ -111,11 +111,9 @@ def analyze_with_ai(repo_data):
     }
     
     payload = {
-        "model": "deepseek-v3.2", 
+        "model": "deepseek-reasoner", 
         "messages": [{"role": "user", "content": prompt}],
         "response_format": {"type": "json_object"},
-        "enable_thinking": True,      # 新增：开启内部思考
-        "thinking": {"type": "disabled"}  # 新增：不输出思考过程
     }
 
     try:
