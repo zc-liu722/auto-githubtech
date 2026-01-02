@@ -9,7 +9,7 @@ API_KEY = os.environ.get("LLM_API_KEY")
 API_BASE_URL = "https://api.deepseek.com" # 或 https://api.openai.com/v1
 
 # 搜索关键词：使用更精准的 GitHub 语法
-TOPICS = "ai+quant+agent"
+TOPICS = "ai quant agent"
 # ===========================================
 
 def load_history():
@@ -25,42 +25,45 @@ def save_history(history_set):
 def get_github_repos(period="month", exclude_names=set()):
     api_url = "https://api.github.com/search/repositories"
     
-    # 构建一个更简单的查询语句
     if period == "month":
         date_since = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
-        # 搜索 ai, quant, agent 相关的热门项目
-        query = f"{TOPICS} created:>{date_since} stars:>10" 
+        # 搜索逻辑：(AI 或 量化 或 智能体) 且 创建于近30天 且 Star > 5
+        query = f"{TOPICS} created:>{date_since} stars:>5"
     else:
-        query = f"{TOPICS} stars:>500" # 历史排行直接搜高星
+        # 历史排行：(AI 或 量化 或 智能体) 且 Star > 500
+        query = f"{TOPICS} stars:>500"
 
     params = {
         "q": query,
         "sort": "stars",
         "order": "desc",
-        "per_page": 20 # 每次多拿一点，增加命中率
+        "per_page": 100 # 大幅增加初筛数量
     }
     
-    print(f"正在尝试搜索: {query}") # 这行日志能让我们在 Actions 里看到到底搜了什么
+    print(f"正在尝试广域搜索: {query}")
     
     try:
         resp = requests.get(api_url, params=params, timeout=20)
         if resp.status_code != 200:
-            print(f"GitHub 报错: {resp.status_code} - {resp.text}")
+            print(f"GitHub 报错: {resp.status_code}")
             return []
         
         raw_items = resp.json().get("items", [])
-        print(f"API 响应结果数量: {len(raw_items)}") # 调试信息
+        print(f"原始匹配总数: {len(raw_items)}")
         
         valid_items = []
         for item in raw_items:
+            # 过滤掉已经看过的项目
             if item['full_name'] not in exclude_names:
                 valid_items.append(item)
+                # 网页每一栏我们要 5 个，所以这里抓 5 个就停
                 if len(valid_items) >= 5:
                     break
         return valid_items
     except Exception as e:
-        print(f"网络请求失败: {e}")
+        print(f"网络异常: {e}")
         return []
+
 def analyze_with_ai(repo_data):
     """完整修复版：包含 headers 和 payload 逻辑"""
     if not API_KEY:
