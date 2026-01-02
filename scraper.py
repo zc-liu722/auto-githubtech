@@ -6,21 +6,35 @@ from datetime import datetime, timedelta
 
 # ================= 配置区域 =================
 API_KEY = os.environ.get("LLM_API_KEY") 
-API_BASE_URL = "https://api.deepseek.com" # 或 https://api.openai.com/v1
+API_BASE_URL = "https://api.deepseek.com"
 
 # 搜索关键词：使用更精准的 GitHub 语法
 TOPICS = "ai or agent or quant"
 # ===========================================
 
 def load_history():
+    # 打印一下，看看程序有没有尝试去读
+    print("正在检查历史记录...")
     if os.path.exists("history.json"):
-        with open("history.json", "r", encoding="utf-8") as f:
-            return set(json.load(f))
+        try:
+            with open("history.json", "r", encoding="utf-8") as f:
+                data = json.load(f)
+                print(f"成功加载历史记录，共 {len(data)} 条")
+                return set(data)
+        except Exception as e:
+            print(f"读取历史记录出错: {e}")
+            return set()
+    print("未发现历史记录文件，将创建新记录。")
     return set()
 
 def save_history(history_set):
-    with open("history.json", "w", encoding="utf-8") as f:
-        json.dump(list(history_set), f)
+    print(f"正在保存历史记录，当前共 {len(history_set)} 条...")
+    try:
+        with open("history.json", "w", encoding="utf-8") as f:
+            json.dump(list(history_set), f, ensure_ascii=False, indent=2)
+        print("history.json 写入成功！")
+    except Exception as e:
+        print(f"写入历史记录失败: {e}")
 
 def get_github_repos(period="month", exclude_names=set()):
     api_url = "https://api.github.com/search/repositories"
@@ -73,8 +87,22 @@ def analyze_with_ai(repo_data):
     prompt = f"""
     项目: {repo_data['full_name']}
     描述: {repo_data['description']}
-    要求: 以技术专家身份为小白写中文简介。专业术语保留英文加中文括号。
-    格式: 严格 JSON。包含 title_cn, one_liner, tags(3个), summary, deep_dive(principle, application, opportunity, critical)。
+    要求: 以ai技术专家身份为零基础大学生小白写项目中文简介，专业术语保留英文加中文括号。
+    application内容要求：
+        1.分析写出该项目的应用场景。
+        2.要为大学生举一个具体的例子。
+        3.强调能做什么,也要强调不能做什么，不是用来做什么的。
+        4.强调该项目的独特优势和创新点，与其他项目的区别。
+    opportunity内容要求：
+        1.分析该项目在行业中的潜在影响。
+        2.预测这个项目在未来 3 年的商业价值。
+        3.大学生可以怎么利用该项目的积极影响提升自己、创造财富。
+        4.为当下创业带来什么潜在机会。
+    critical内容要求：
+        1.指出该项目目前存在的主要问题和局限性。
+        2.分析这些问题对用户和行业的影响。
+        3.大学生在使用时需要注意什么风险。
+    输出格式: 严格 JSON。包含 title_cn, one_liner, tags(3个), summary, deep_dive(principle, application, opportunity, critical)。
     """
 
     headers = {
@@ -83,17 +111,29 @@ def analyze_with_ai(repo_data):
     }
     
     payload = {
-        "model": "deepseek-chat", # 或 gpt-4o-mini
+        "model": "deepseek-v3.2", 
         "messages": [{"role": "user", "content": prompt}],
-        "response_format": {"type": "json_object"}
+        "response_format": {"type": "json_object"},
+        "enable_thinking": True,      # 新增：开启内部思考
+        "thinking": {"type": "disabled"}  # 新增：不输出思考过程
     }
 
     try:
         resp = requests.post(f"{API_BASE_URL}/chat/completions", headers=headers, json=payload, timeout=30)
-        content = resp.json()['choices'][0]['message']['content']
+        resp.raise_for_status()  # 新增：检查HTTP错误
+        
+        response_data = resp.json()
+        content = response_data['choices'][0]['message']['content']
+        
         # 清洗 Markdown 格式
         clean_content = content.replace("```json", "").replace("```", "").strip()
         return json.loads(clean_content)
+    except requests.exceptions.RequestException as e:
+        print(f"网络请求失败 ({repo_data['name']}): {e}")
+        return None
+    except json.JSONDecodeError as e:
+        print(f"JSON解析失败 ({repo_data['name']}): {e}，原始内容: {content[:200]}")
+        return None
     except Exception as e:
         print(f"AI 解析失败 ({repo_data['name']}): {e}")
         return None
