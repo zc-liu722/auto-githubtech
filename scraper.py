@@ -27,14 +27,37 @@ def load_history():
     print("未发现历史记录文件，将创建新记录。")
     return set()
 
-def save_history(history_set):
-    print(f"正在保存历史记录，当前共 {len(history_set)} 条...")
-    try:
-        with open("history.json", "w", encoding="utf-8") as f:
-            json.dump(list(history_set), f, ensure_ascii=False, indent=2)
-        print("history.json 写入成功！")
-    except Exception as e:
-        print(f"写入历史记录失败: {e}")
+def save_history(history_set, current_data):
+    """
+    修改版：不仅存名字，还存下完整的分析内容，方便网页回顾。
+    我们将 history.json 维护成一个包含最近 100 个项目的列表。
+    """
+    print("正在同步历史存档...")
+    history_file = "history.json"
+    
+    # 1. 先读取现有存档
+    existing_records = []
+    if os.path.exists(history_file):
+        with open(history_file, "r", encoding="utf-8") as f:
+            try:
+                existing_records = json.load(f)
+            except: existing_records = []
+
+    # 2. 合并新抓取的数据（避免重复）
+    new_items = current_data["trending"] + current_data["all_time"]
+    existing_ids = {item['repo_info']['full_name'] for item in existing_records}
+    
+    for item in new_items:
+        if item['repo_info']['full_name'] not in existing_ids:
+            # 在记录开头插入，保证最新的在前面
+            existing_records.insert(0, item)
+
+    # 3. 只保留最近的 100 条，防止文件过大影响网页加载
+    final_history = existing_records[:100]
+
+    with open(history_file, "w", encoding="utf-8") as f:
+        json.dump(final_history, f, ensure_ascii=False, indent=2)
+    print(f"存档更新完成，目前记忆库共 {len(final_history)} 条记录。")
 
 def get_github_repos(period="month", exclude_names=set()):
     api_url = "https://api.github.com/search/repositories"
@@ -79,14 +102,14 @@ def get_github_repos(period="month", exclude_names=set()):
         return []
 
 def analyze_with_ai(repo_data):
-    """完整修复版：包含 headers 和 payload 逻辑"""
     if not API_KEY:
         print("错误: 未检测到 API_KEY")
         return None
 
-    prompt = f"""
-    项目: {repo_data['full_name']}
-    描述: {repo_data['description']}
+    # 使用 r""" """ 原始字符串，确保你要求的每一句话都原样保留，不受 Python 转义影响
+    prompt = r"""
+    项目: """ + repo_data['full_name'] + r"""
+    描述: """ + repo_data['description'] + r"""
     要求: 以ai技术专家身份为零基础大学生小白写项目中文简介，专业术语保留英文加中文括号。
     application内容要求：
         1.分析写出该项目的应用场景。
@@ -102,7 +125,9 @@ def analyze_with_ai(repo_data):
         1.指出该项目目前存在的主要问题和局限性。
         2.分析这些问题对用户和行业的影响。
         3.大学生在使用时需要注意什么风险。
-    输出格式: 严格输出JSON。包含 title_cn, one_liner, tags(3个), summary, deep_dive(principle, application, opportunity, critical)。
+    输出格式: 严格输出 JSON 格式。
+    包含字段: title_cn, one_liner, tags(3个), summary, deep_dive。
+    其中 deep_dive 必须包含子字段: principle, application, opportunity, critical。
     """
 
     headers = {
@@ -112,30 +137,32 @@ def analyze_with_ai(repo_data):
     
     payload = {
         "model": "deepseek-chat", 
-        "messages": [{"role": "user", "content": prompt}],
-        "response_format": {"type": "json_object"},
+        "messages": [
+            {"role": "system", "content": "You are a professional AI assistant. You must output a valid JSON object."},
+            {"role": "user", "content": prompt}
+        ],
+        "response_format": {"type": "json_object"}
     }
 
     try:
-        resp = requests.post(f"{API_BASE_URL}/chat/completions", headers=headers, json=payload, timeout=30)
-        resp.raise_for_status()  # 新增：检查HTTP错误
+        # 增加超时时间，因为你的 Prompt 要求非常详细，AI 思考和生成需要时间
+        resp = requests.post(f"{API_BASE_URL}/chat/completions", headers=headers, json=payload, timeout=90)
+        
+        if resp.status_code != 200:
+            print(f"API 报错 (状态码 {resp.status_code}): {resp.text}")
+            return None
         
         response_data = resp.json()
         content = response_data['choices'][0]['message']['content']
         
-        # 清洗 Markdown 格式
+        # 清洗 Markdown 格式（防止 AI 返回 ```json ... ```）
         clean_content = content.replace("```json", "").replace("```", "").strip()
         return json.loads(clean_content)
-    except requests.exceptions.RequestException as e:
-        print(f"网络请求失败 ({repo_data['name']}): {e}")
-        return None
-    except json.JSONDecodeError as e:
-        print(f"JSON解析失败 ({repo_data['name']}): {e}，原始内容: {content[:200]}")
-        return None
+        
     except Exception as e:
-        print(f"AI 解析失败 ({repo_data['name']}): {e}")
+        print(f"AI 解析失败 ({repo_data['full_name']}): {e}")
         return None
-
+    
 def main():
     history_set = load_history()
     final_data = {"date": datetime.now().strftime("%Y-%m-%d"), "trending": [], "all_time": []}
@@ -163,7 +190,7 @@ def main():
     with open("data.json", "w", encoding="utf-8") as f:
         json.dump(final_data, f, ensure_ascii=False, indent=2)
     
-    save_history(history_set)
+    save_history(history_set, final_data)
     print(f"更新成功！今日抓取 {len(final_data['trending']) + len(final_data['all_time'])} 个项目。")
 
 if __name__ == "__main__":

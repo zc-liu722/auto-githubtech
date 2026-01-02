@@ -23,7 +23,6 @@
         }
     </script>
     <style>
-        /* 流光背景核心动画 */
         @keyframes float {
             0% { transform: translate(0, 0) scale(1); }
             33% { transform: translate(40px, -60px) scale(1.1); }
@@ -39,7 +38,6 @@
             overflow-x: hidden;
         }
 
-        /* 动态背景层 */
         .bg-glow-container {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -54,7 +52,6 @@
             animation: float 18s infinite ease-in-out;
         }
 
-        /* 磨砂玻璃卡片样式 */
         .tech-card { 
             transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1); 
             border: 1px solid rgba(255,255,255,0.06); 
@@ -70,6 +67,12 @@
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #0F0F10; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+
+        #history-sidebar {
+            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        #history-archive-list::-webkit-scrollbar { width: 4px; }
+        #history-archive-list::-webkit-scrollbar-thumb { background: #444; border-radius: 10px; }
     </style>
 </head>
 <body class="min-h-screen p-8">
@@ -85,11 +88,15 @@
             <h1 class="text-4xl font-bold tracking-tight text-white mb-2">FUTURE <span class="text-morandiBlue">INSIGHT</span></h1>
             <p class="text-morandiGreen text-sm">每日 AI 与前沿技术情报站</p>
         </div>
-        <div id="update-date" class="text-textDim text-sm font-mono">Loading...</div>
+        <div class="flex items-center space-x-4">
+            <button onclick="toggleHistory()" class="text-morandiBlue border border-morandiBlue/30 px-4 py-1 rounded-full text-xs hover:bg-morandiBlue hover:text-white transition-all">
+                📜 查看历史存档
+            </button>
+            <div id="update-date" class="text-textDim text-sm font-mono">Loading...</div>
+        </div>
     </header>
 
     <main class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 relative z-10">
-        
         <section>
             <h2 class="text-2xl font-bold mb-6 flex items-center">
                 <span class="w-2 h-8 bg-morandiBlue mr-3 rounded-full shadow-[0_0_15px_#7D93A6]"></span>
@@ -107,14 +114,26 @@
         </section>
     </main>
 
-    <div id="modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex justify-center items-center z-50 p-4">
-        <div class="bg-[#1A1A1C] w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-xl border border-gray-700 p-8 relative">
+    <div id="modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex justify-center items-center z-[70] p-4">
+        <div class="bg-[#1A1A1C] w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-xl border border-gray-700 p-8 relative shadow-2xl">
             <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl">&times;</button>
             <div id="modal-content"></div>
         </div>
     </div>
 
+    <div id="history-sidebar" class="fixed inset-y-0 right-0 w-full md:w-96 bg-[#1A1A1C]/95 backdrop-blur-xl border-l border-white/10 z-[60] transform translate-x-full shadow-2xl">
+        <div class="p-6 h-full flex flex-col">
+            <div class="flex justify-between items-center mb-8 border-b border-white/10 pb-4">
+                <h3 class="text-xl font-bold text-morandiBlue tracking-widest uppercase">项目存档 Archive</h3>
+                <button onclick="toggleHistory()" class="text-textDim hover:text-white text-3xl">&times;</button>
+            </div>
+            <div id="history-archive-list" class="flex-1 overflow-y-auto space-y-4">
+                </div>
+        </div>
+    </div>
+
     <script>
+        // 初始化加载数据
         fetch('./data.json')
             .then(response => response.json())
             .then(data => {
@@ -126,7 +145,10 @@
 
         function renderList(containerId, items) {
             const container = document.getElementById(containerId);
-            if(!items) return;
+            if(!items || items.length === 0) {
+                container.innerHTML = '<p class="text-textDim italic">暂无数据</p>';
+                return;
+            }
             items.forEach((item) => {
                 const info = item.repo_info;
                 const ai = item.analysis;
@@ -156,37 +178,37 @@
             
             content.innerHTML = `
                 <h2 class="text-3xl font-bold text-white mb-2">${ai.title_cn}</h2>
-                <p class="text-morandiGreen font-mono mb-6">${item.repo_info.full_name}</p>
+                <p class="text-morandiGreen font-mono mb-6 text-sm uppercase tracking-wider">${item.repo_info.full_name}</p>
                 
                 <div class="space-y-6 text-gray-300">
-                    <div class="bg-gray-900 p-4 rounded-lg border-l-4 border-morandiBlue">
-                        <h4 class="font-bold text-white mb-2">🎯 一句话介绍</h4>
-                        <p>${ai.one_liner}</p>
+                    <div class="bg-gray-900/50 p-4 rounded-lg border-l-4 border-morandiBlue">
+                        <h4 class="font-bold text-white mb-2 uppercase text-xs tracking-widest text-morandiBlue">🎯 一句话介绍</h4>
+                        <p class="text-lg">${ai.one_liner}</p>
                     </div>
 
                     <div>
-                        <h4 class="text-xl font-bold text-white mb-2">🧠 核心原理 (Principle)</h4>
-                        <p>${ai.deep_dive.principle}</p>
+                        <h4 class="text-sm font-bold text-white mb-2 uppercase tracking-widest border-b border-white/10 pb-1">🧠 核心原理 (Principle)</h4>
+                        <p class="leading-relaxed">${ai.deep_dive.principle}</p>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <h4 class="font-bold text-white mb-2">🚀 应用场景</h4>
-                            <p class="text-sm">${ai.deep_dive.application}</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-white/5 p-4 rounded-lg">
+                            <h4 class="font-bold text-white mb-2 uppercase text-xs tracking-widest text-morandiGreen">🚀 应用场景</h4>
+                            <p class="text-sm leading-relaxed">${ai.deep_dive.application}</p>
                         </div>
-                        <div>
-                            <h4 class="font-bold text-white mb-2">💡 机会 & 灵感</h4>
-                            <p class="text-sm">${ai.deep_dive.opportunity}</p>
+                        <div class="bg-white/5 p-4 rounded-lg">
+                            <h4 class="font-bold text-white mb-2 uppercase text-xs tracking-widest text-morandiGreen">💡 机会 & 灵感</h4>
+                            <p class="text-sm leading-relaxed">${ai.deep_dive.opportunity}</p>
                         </div>
                     </div>
 
-                    <div>
-                        <h4 class="font-bold text-morandiPink mb-2">🤔 批判性思考</h4>
-                        <p class="text-sm italic text-gray-400">${ai.deep_dive.critical}</p>
+                    <div class="bg-morandiPink/5 p-4 rounded-lg border border-morandiPink/20">
+                        <h4 class="font-bold text-morandiPink mb-2 uppercase text-xs tracking-widest">🤔 批判性思考</h4>
+                        <p class="text-sm italic text-gray-400 leading-relaxed">${ai.deep_dive.critical}</p>
                     </div>
 
-                    <a href="${item.repo_info.html_url}" target="_blank" class="block w-full text-center bg-white text-black font-bold py-3 rounded mt-8 hover:bg-morandiBlue hover:text-white transition">
-                        查看 GitHub 源码
+                    <a href="${item.repo_info.html_url}" target="_blank" class="block w-full text-center bg-white text-black font-bold py-4 rounded-xl mt-8 hover:bg-morandiBlue hover:text-white transition-all shadow-lg">
+                        EXPLORE GITHUB SOURCE
                     </a>
                 </div>
             `;
@@ -195,6 +217,52 @@
 
         function closeModal() {
             document.getElementById('modal').classList.add('hidden');
+        }
+
+        // 历史侧边栏逻辑
+        let isHistoryOpen = false;
+
+        function toggleHistory() {
+            const sidebar = document.getElementById('history-sidebar');
+            isHistoryOpen = !isHistoryOpen;
+            
+            if (isHistoryOpen) {
+                sidebar.classList.remove('translate-x-full');
+                loadHistoryData();
+            } else {
+                sidebar.classList.add('translate-x-full');
+            }
+        }
+
+        function loadHistoryData() {
+            const listContainer = document.getElementById('history-archive-list');
+            listContainer.innerHTML = '<p class="text-center text-textDim py-10 animate-pulse">正在调取记忆库 Archive...</p>';
+
+            fetch('./history.json')
+                .then(res => res.json())
+                .then(data => {
+                    listContainer.innerHTML = '';
+                    if (!data || data.length === 0) {
+                        listContainer.innerHTML = '<p class="text-center text-textDim py-10">暂无历史存档</p>';
+                        return;
+                    }
+                    data.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'p-4 rounded-lg bg-white/5 border border-white/5 hover:border-morandiBlue/50 cursor-pointer transition-all group';
+                        div.onclick = () => {
+                            openModal(item);
+                            toggleHistory();
+                        };
+                        div.innerHTML = `
+                            <div class="text-[10px] text-morandiGreen mb-1 font-mono uppercase opacity-60 tracking-tighter">${item.repo_info.name}</div>
+                            <div class="text-sm font-bold text-white group-hover:text-morandiBlue transition-colors">${item.analysis.title_cn}</div>
+                        `;
+                        listContainer.appendChild(div);
+                    });
+                })
+                .catch(() => {
+                    listContainer.innerHTML = '<p class="text-center text-morandiPink py-10 text-xs italic">存档文件生成中，请在下次抓取后查看。</p>';
+                });
         }
     </script>
 </body>
