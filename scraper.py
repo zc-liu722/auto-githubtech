@@ -111,7 +111,7 @@ def analyze_with_ai(repo_data):
     }
     
     payload = {
-        "model": "deepseek-reasoner", 
+        "model": "deepseek-chat", 
         "messages": [{"role": "user", "content": prompt}],
         "response_format": {"type": "json_object"},
     }
