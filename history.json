@@ -1,1 +1,8 @@
-[]
+[
+  "AUTOMATIC1111/stable-diffusion-webui",
+  "AndyMik90/Auto-Claude",
+  "langflow-ai/langflow",
+  "VibiumDev/vibium",
+  "n8n-io/n8n",
+  "nguyenphutrong/quotio"
+]
