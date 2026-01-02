@@ -128,7 +128,9 @@ def analyze_with_ai(repo_data):
     输出格式: 严格输出 JSON 格式。
     包含字段: title_cn, one_liner, tags(3个), summary, deep_dive。
     其中 deep_dive 必须包含子字段: principle, application, opportunity, critical。
+    特别注意：deep_dive 下的所有子字段内容必须是“纯文本字符串”，严禁嵌套其他 JSON 对象或数组。
     """
+
 
     headers = {
         "Authorization": f"Bearer {API_KEY}",

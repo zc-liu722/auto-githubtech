@@ -175,7 +175,16 @@
             const modal = document.getElementById('modal');
             const content = document.getElementById('modal-content');
             const ai = item.analysis;
-            
+
+            // --- 新增：一个内部小工具，用来确保内容是文字 ---
+            const formatText = (text) => {
+                if (typeof text === 'object' && text !== null) {
+                    // 如果 AI 还是返回了对象，就把对象里的所有值串联起来显示
+                    return Object.values(text).join(' ');
+                }
+                return text || '暂无内容';
+            };
+
             content.innerHTML = `
                 <h2 class="text-3xl font-bold text-white mb-2">${ai.title_cn}</h2>
                 <p class="text-morandiGreen font-mono mb-6 text-sm uppercase tracking-wider">${item.repo_info.full_name}</p>
@@ -183,28 +192,28 @@
                 <div class="space-y-6 text-gray-300">
                     <div class="bg-gray-900/50 p-4 rounded-lg border-l-4 border-morandiBlue">
                         <h4 class="font-bold text-white mb-2 uppercase text-xs tracking-widest text-morandiBlue">🎯 一句话介绍</h4>
-                        <p class="text-lg">${ai.one_liner}</p>
+                        <p class="text-lg">${formatText(ai.one_liner)}</p>
                     </div>
 
                     <div>
                         <h4 class="text-sm font-bold text-white mb-2 uppercase tracking-widest border-b border-white/10 pb-1">🧠 核心原理 (Principle)</h4>
-                        <p class="leading-relaxed">${ai.deep_dive.principle}</p>
+                        <p class="leading-relaxed">${formatText(ai.deep_dive.principle)}</p>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="bg-white/5 p-4 rounded-lg">
                             <h4 class="font-bold text-white mb-2 uppercase text-xs tracking-widest text-morandiGreen">🚀 应用场景</h4>
-                            <p class="text-sm leading-relaxed">${ai.deep_dive.application}</p>
+                            <p class="text-sm leading-relaxed">${formatText(ai.deep_dive.application)}</p>
                         </div>
                         <div class="bg-white/5 p-4 rounded-lg">
                             <h4 class="font-bold text-white mb-2 uppercase text-xs tracking-widest text-morandiGreen">💡 机会 & 灵感</h4>
-                            <p class="text-sm leading-relaxed">${ai.deep_dive.opportunity}</p>
+                            <p class="text-sm leading-relaxed">${formatText(ai.deep_dive.opportunity)}</p>
                         </div>
                     </div>
 
                     <div class="bg-morandiPink/5 p-4 rounded-lg border border-morandiPink/20">
                         <h4 class="font-bold text-morandiPink mb-2 uppercase text-xs tracking-widest">🤔 批判性思考</h4>
-                        <p class="text-sm italic text-gray-400 leading-relaxed">${ai.deep_dive.critical}</p>
+                        <p class="text-sm italic text-gray-400 leading-relaxed">${formatText(ai.deep_dive.critical)}</p>
                     </div>
 
                     <a href="${item.repo_info.html_url}" target="_blank" class="block w-full text-center bg-white text-black font-bold py-4 rounded-xl mt-8 hover:bg-morandiBlue hover:text-white transition-all shadow-lg">
