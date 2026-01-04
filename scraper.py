@@ -9,18 +9,18 @@ API_KEY = os.environ.get("LLM_API_KEY")
 API_BASE_URL = "https://api.deepseek.com"
 
 # 搜索关键词：使用更精准的 GitHub 语法
-TOPICS = "quant"
+TOPICS = "ai"
 # ===========================================
 
 def load_history():
-    # 打印一下，看看程序有没有尝试去读
     print("正在检查历史记录...")
     if os.path.exists("history.json"):
         try:
             with open("history.json", "r", encoding="utf-8") as f:
                 data = json.load(f)
                 print(f"成功加载历史记录，共 {len(data)} 条")
-                return set(data)
+                # 只提取 full_name 组成 set 用于去重
+                return {item['repo_info']['full_name'] for item in data}
         except Exception as e:
             print(f"读取历史记录出错: {e}")
             return set()
@@ -30,7 +30,7 @@ def load_history():
 def save_history(history_set, current_data):
     """
     修改版：不仅存名字，还存下完整的分析内容，方便网页回顾。
-    我们将 history.json 维护成一个包含最近 100 个项目的列表。
+    我们将 history.json 维护成一个包含最近 50 个项目的列表。
     """
     print("正在同步历史存档...")
     history_file = "history.json"
@@ -45,15 +45,20 @@ def save_history(history_set, current_data):
 
     # 2. 合并新抓取的数据（避免重复）
     new_items = current_data["trending"] + current_data["all_time"]
-    existing_ids = {item['repo_info']['full_name'] for item in existing_records}
+    existing_ids = set()
+    for item in existing_records:
+        if isinstance(item, dict) and 'repo_info' in item and isinstance(item['repo_info'], dict):
+            full_name = item['repo_info'].get('full_name')
+            if full_name:
+                existing_ids.add(full_name)
     
     for item in new_items:
         if item['repo_info']['full_name'] not in existing_ids:
             # 在记录开头插入，保证最新的在前面
             existing_records.insert(0, item)
 
-    # 3. 只保留最近的 100 条，防止文件过大影响网页加载
-    final_history = existing_records[:100]
+    # 3. 只保留最近的 50 条，防止文件过大影响网页加载
+    final_history = existing_records[:50]
 
     with open(history_file, "w", encoding="utf-8") as f:
         json.dump(final_history, f, ensure_ascii=False, indent=2)
@@ -79,8 +84,14 @@ def get_github_repos(period="month", exclude_names=set()):
     
     print(f"正在尝试广域搜索: {query}")
     
+    headers = {}
+    github_token = os.environ.get("GITHUB_TOKEN")  # 可选，如果你有 token 就放环境变量里
+    if github_token:
+        headers["Authorization"] = f"token {github_token}"
+    headers["Accept"] = "application/vnd.github.v3+json"  # 推荐加上
+    
     try:
-        resp = requests.get(api_url, params=params, timeout=20)
+        resp = requests.get(api_url, params=params, headers=headers, timeout=20)
         if resp.status_code != 200:
             print(f"GitHub 报错: {resp.status_code}")
             return []
@@ -90,26 +101,28 @@ def get_github_repos(period="month", exclude_names=set()):
         
         valid_items = []
         for item in raw_items:
-            # 过滤掉已经看过的项目
             if item['full_name'] not in exclude_names:
                 valid_items.append(item)
-                # 网页每一栏我们要 5 个，所以这里抓 5 个就停
-                if len(valid_items) >= 5:
+                if len(valid_items) >= 50:
                     break
         return valid_items
     except Exception as e:
         print(f"网络异常: {e}")
         return []
 
+
 def analyze_with_ai(repo_data):
     if not API_KEY:
         print("错误: 未检测到 API_KEY")
         return None
+    
+    # 安全处理 None 值
+    description = repo_data['description'] or "无描述"
+    
+    prompt = f"""
+    项目: {repo_data['full_name']}
+    描述: {description}
 
-    # 使用 r""" """ 原始字符串，确保你要求的每一句话都原样保留，不受 Python 转义影响
-    prompt = r"""
-    项目: """ + repo_data['full_name'] + r"""
-    描述: """ + repo_data['description'] + r"""
     要求: 以ai技术专家身份为零基础大学生小白写项目中文简介，专业术语保留英文加中文括号。
     application内容要求：
         1.分析写出该项目的应用场景。
@@ -129,7 +142,7 @@ def analyze_with_ai(repo_data):
     包含字段: title_cn, one_liner, tags(3个), summary, deep_dive。
     其中 deep_dive 必须包含子字段: principle, application, opportunity, critical。
     特别注意：deep_dive 下的所有子字段内容必须是“纯文本字符串”，严禁嵌套其他 JSON 对象或数组。
-    """
+        """.strip()
 
 
     headers = {
