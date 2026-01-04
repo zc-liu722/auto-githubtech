@@ -68,8 +68,8 @@ def get_github_repos(period="month", exclude_names=set()):
     api_url = "https://api.github.com/search/repositories"
     
     if period == "month":
-        date_since = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
-        # 搜索逻辑：(AI 或 量化 或 智能体) 且 创建于近30天 且 Star > 5
+        date_since = (datetime.now() - timedelta(days=60)).strftime('%Y-%m-%d')
+        # 搜索逻辑：(AI 或 量化 或 智能体) 且 创建于近60天 且 Star > 5
         query = f"{TOPICS} created:>{date_since} stars:>5"
     else:
         # 历史排行：(AI 或 量化 或 智能体) 且 Star > 500
@@ -79,7 +79,7 @@ def get_github_repos(period="month", exclude_names=set()):
         "q": query,
         "sort": "stars",
         "order": "desc",
-        "per_page": 100 # 大幅增加初筛数量
+        "per_page": 30 
     }
     
     print(f"正在尝试广域搜索: {query}")
@@ -103,7 +103,7 @@ def get_github_repos(period="month", exclude_names=set()):
         for item in raw_items:
             if item['full_name'] not in exclude_names:
                 valid_items.append(item)
-                if len(valid_items) >= 50:
+                if len(valid_items) >= 10:
                     break
         return valid_items
     except Exception as e:
