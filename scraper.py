@@ -9,7 +9,7 @@ API_KEY = os.environ.get("LLM_API_KEY")
 API_BASE_URL = "https://api.deepseek.com"
 
 # 搜索关键词：使用更精准的 GitHub 语法
-TOPICS = "ai"
+TOPICS = "quant"
 # ===========================================
 
 def load_history():
@@ -103,7 +103,7 @@ def get_github_repos(period="month", exclude_names=set()):
         for item in raw_items:
             if item['full_name'] not in exclude_names:
                 valid_items.append(item)
-                if len(valid_items) >= 10:
+                if len(valid_items) >= 3:
                     break
         return valid_items
     except Exception as e:
